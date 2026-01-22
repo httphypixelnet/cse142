@@ -1,22 +1,11 @@
-// PREMADE
-package compsci.labs.critters.server;// Class CritterModel keeps track of the state of the critter simulation.
+// Class CritterModel keeps track of the state of the critter simulation.
 
-import compsci.labs.critters.shared.dto.BatchCritterRequestDTO;
-import compsci.labs.critters.shared.dto.CritterRequestDTO;
-import compsci.labs.critters.shared.dto.CritterResponseDTO;
-import compsci.labs.critters.shared.OpCode;
-import compsci.labs.critters.shared.DebugLogger;
-import compsci.labs.critters.shared.Critter;
-import compsci.labs.critters.shared.CritterInfo;
-import io.javalin.websocket.WsContext;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.*;
 import java.awt.Point;
 import java.awt.Color;
 import java.lang.reflect.*;
 
-class CritterModel {
+public class CritterModel {
     // the following constant indicates how often infect should fail for
     // critters who didn't hop on their previous move (0.0 means no advantage,
     // 1.0 means 100% advantage)
@@ -30,16 +19,6 @@ class CritterModel {
     private boolean debugView;
     private int simulationCount;
     private static boolean created;
-    
-    // Map to store pending batch futures
-    private final Map<WsContext, CompletableFuture<List<CritterResponseDTO>>> pendingBatches = new HashMap<>();
-
-    public void completeBatch(WsContext ctx, List<CritterResponseDTO> responses) {
-        CompletableFuture<List<CritterResponseDTO>> future = pendingBatches.get(ctx);
-        if (future != null) {
-            future.complete(responses);
-        }
-    }
     
     public CritterModel(int width, int height) {
         // this prevents someone from trying to create their own copy of
@@ -70,31 +49,6 @@ class CritterModel {
 
     public String getString(Critter c) {
         return info.get(c).string;
-    }
-
-    public void add(Critter c) {
-        Random r = new Random();
-        Critter.Direction[] directions = Critter.Direction.values();
-        if (info.size() >= width * height)
-            throw new RuntimeException("adding too many critters");
-        
-        int x, y;
-        do {
-            x = r.nextInt(width);
-            y = r.nextInt(height);
-        } while (grid[x][y] != null);
-        grid[x][y] = c;
-        
-        Critter.Direction d = directions[r.nextInt(directions.length)];
-        info.put(c, new PrivateData(new Point(x, y), d));
-        
-        String name = c.getClass().getSimpleName();
-        // For RemoteCritter, we might want the original species name, but RemoteCritter will likely override toString/etc.
-        // Let's assume RemoteCritter handles its identity.
-        if (!critterCount.containsKey(name))
-            critterCount.put(name, 1);
-        else
-            critterCount.put(name, critterCount.get(name) + 1);
     }
 
     public void add(int number, Class<? extends Critter> critter) {
@@ -137,7 +91,7 @@ class CritterModel {
     @SuppressWarnings("unchecked")
     private Critter makeCritter(Class critter) throws Exception {
         Constructor c = critter.getConstructors()[0];
-        if (critter.toString().contains(".Bear")) {
+        if (critter.toString().equals("class Bear")) {
             // flip a coin
             boolean b = Math.random() < 0.5;
             return (Critter) c.newInstance(new Object[] {b});
@@ -194,7 +148,7 @@ class CritterModel {
         else return new Point(p.x - 1, p.y);
     }
 
-    private ServerInfo getInfo(PrivateData data, Class original) {
+    private Info getInfo(PrivateData data, Class original) {
         Critter.Neighbor[] neighbors = new Critter.Neighbor[4];
         Critter.Direction d = data.direction;
         boolean[] neighborThreats = new boolean[4];
@@ -207,7 +161,7 @@ class CritterModel {
             }
             d = rotate(d);
         }
-        return new ServerInfo(neighbors, data.direction, neighborThreats);
+        return new Info(neighbors, data.direction, neighborThreats);
     }
 
     private Critter.Neighbor getStatus(Point p, Class original) {
@@ -227,63 +181,6 @@ class CritterModel {
         Object[] list = info.keySet().toArray();
         Collections.shuffle(Arrays.asList(list));
 
-        // Phase 1: Prepare and send batch requests
-        Map<WsContext, List<CritterRequestDTO>> batches = new HashMap<>();
-        for (Object obj : list) {
-            Critter c = (Critter) obj;
-            if (c instanceof RemoteCritter rc) {
-                PrivateData data = info.get(c);
-                if (data == null) continue;
-                ServerInfo serverInfo = getInfo(data, c.getClass());
-                CritterRequestDTO req = new CritterRequestDTO(rc.getId(), OpCode.MOVE, serverInfo.toDTO());
-                batches.computeIfAbsent(rc.getContext(), k -> new ArrayList<>()).add(req);
-            }
-        }
-
-        pendingBatches.clear();
-        List<CompletableFuture<List<CritterResponseDTO>>> futures = new ArrayList<>();
-
-        for (Map.Entry<WsContext, List<CritterRequestDTO>> entry : batches.entrySet()) {
-            WsContext ctx = entry.getKey();
-            if (ctx.session.isOpen()) {
-                CompletableFuture<List<CritterResponseDTO>> future = new CompletableFuture<>();
-                pendingBatches.put(ctx, future);
-                futures.add(future);
-                
-                BatchCritterRequestDTO batchReq = new BatchCritterRequestDTO(entry.getValue());
-                DebugLogger.log("[Server] Sending batch request to " + ctx.sessionId() + " with " + entry.getValue().size() + " critters");
-                ctx.send(batchReq.toJson());
-            }
-        }
-
-        // Wait for all batches
-        if (!futures.isEmpty()) {
-            try {
-                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(5, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                DebugLogger.log("[Server] Timeout/Error waiting for batches: " + e);
-            }
-        }
-
-        // Process responses and populate RemoteCritters
-        for (CompletableFuture<List<CritterResponseDTO>> future : futures) {
-            try {
-                List<CritterResponseDTO> responses = future.getNow(Collections.emptyList());
-                for (CritterResponseDTO resp : responses) {
-                    RemoteCritter rc = (RemoteCritter) info.keySet().stream()
-                        .filter(c -> c instanceof RemoteCritter && ((RemoteCritter)c).getId().equals(resp.critterId()))
-                        .findFirst().orElse(null);
-                    if (rc != null) {
-                        rc.setNextAction(resp.action());
-                    }
-                }
-            } catch (Exception e) {
-                // Ignore, already handled or empty
-            }
-        }
-        pendingBatches.clear();
-
-        // Phase 2: Execute simulation loop
         // This keeps track of critters that are locked and cannot be 
         // infected this turn. The happens when: 
         // * a Critter is infected
@@ -351,7 +248,6 @@ class CritterModel {
             }
         }
         updateColorString();
-        BoardUpdateService.broadcast(BoardSnapshotBuilder.fromModel(this));
     }
 
     // calling this method causes each critter to update the stored color and
@@ -389,5 +285,53 @@ class CritterModel {
         }
     }
 
+    // an object used to query a critter's state (neighbors, direction)
+    private static class Info implements CritterInfo {
+        private Critter.Neighbor[] neighbors;
+        private Critter.Direction direction;
+        private boolean[] neighborThreats;
 
+        public Info(Critter.Neighbor[] neighbors, Critter.Direction d,
+                    boolean[] neighborThreats) {
+            this.neighbors = neighbors;
+            this.direction = d;
+            this.neighborThreats = neighborThreats;
+        }
+
+        public Critter.Neighbor getFront() {
+            return neighbors[0];
+        }
+
+        public Critter.Neighbor getBack() {
+            return neighbors[2];
+        }
+
+        public Critter.Neighbor getLeft() {
+            return neighbors[3];
+        }
+
+        public Critter.Neighbor getRight() {
+            return neighbors[1];
+        }
+
+        public Critter.Direction getDirection() {
+            return direction;
+        }
+
+        public boolean frontThreat() {
+            return neighborThreats[0];
+        }
+        
+        public boolean backThreat() {
+            return neighborThreats[2];
+        }
+            
+        public boolean leftThreat() {
+            return neighborThreats[3];
+        }
+        
+        public boolean rightThreat() {
+            return neighborThreats[1];
+        }
+    }
 }

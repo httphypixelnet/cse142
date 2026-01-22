@@ -38,7 +38,7 @@ public class GuessingGame {
     }
     private boolean playAgain(Scanner sc) {
         System.out.print("Would you like to play again?\n > ");
-        String ans = sc.next();
+        String ans = sc.nextLine();
         return List.of("y", "yes", "sure").contains(ans.toLowerCase());
     }
     public GuessingGame() {
@@ -91,5 +91,8 @@ public class GuessingGame {
                 "Guesses: %s%n" +
                 "Guesses/Game: %s%n" +
                 "Best game: %s%n", victories.get(), totalGuesses, Math.round(totalGuesses*100/victories.doubleValue())/100, bestGame);
+    }
+    public static void main(String[] args) {
+        new GuessingGame().run();
     }
 }

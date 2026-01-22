@@ -1,16 +1,9 @@
 package compsci;
 
-import compsci.labs.*;
+import compsci.labs.critters.server.ServerMain;
 
 public class App {
     public static void main(String[] args) {
-//        Lyrics.run();
-//        ASCII.run();
-//        // thread because DrawingPanel is blocking
-//        new Thread(CafeWall::run).start();
-//        new Thread(Doodle::run).start();
-//        new GuessingGame().run();
-//        Budgeter.run();
-        MadLibs.run();
+        ServerMain.main(args);
     }
 }

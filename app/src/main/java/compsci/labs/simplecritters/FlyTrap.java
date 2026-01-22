@@ -1,10 +1,6 @@
-// PREMADE
-package compsci.labs.critters.server;// This defines a simple class of critters that infect whenever they can and
+// This defines a simple class of critters that infect whenever they can and
 // otherwise just spin around, looking for critters to infect.  This simple
 // strategy turns out to be surpisingly successful.
-
-import compsci.labs.critters.shared.Critter;
-import compsci.labs.critters.shared.CritterInfo;
 
 import java.awt.*;
 

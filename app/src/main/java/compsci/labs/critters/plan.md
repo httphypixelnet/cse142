@@ -8,7 +8,7 @@ Client will init by taking a server address in as either a program argument or a
 
 ### Server
 
-Server will take a bind address, listening on an insecure websocket.
+Server will take a bind address, listening on a websocket.
 
 ## Architecture
 

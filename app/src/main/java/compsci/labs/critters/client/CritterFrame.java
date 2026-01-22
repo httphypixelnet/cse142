@@ -3,7 +3,9 @@ package compsci.labs.critters.client;// Class CritterFrame provides the user int
 // program.
 
 import compsci.labs.critters.shared.Critter;
-import compsci.labs.critters.server.CritterModel;
+// import compsci.labs.critters.server.CritterModel; // Removed
+import compsci.labs.critters.shared.OpCode;
+import compsci.labs.critters.shared.dto.BoardSnapshot;
 
 import javax.swing.*;
 import java.awt.*;
@@ -12,36 +14,57 @@ import javax.swing.event.*;
 import java.util.*;
 
 public class CritterFrame extends JFrame {
-    private CritterModel myModel;
-    private CritterPanel myPicture;
+    private final RemoteBoardView boardView;
+    private final SocketHandler socketHandler;
+    private SocketHandler.SocketStatus status = SocketHandler.SocketStatus.DISCONNECTED;
+    private static boolean created;
     private javax.swing.Timer myTimer;
     private JButton[] counts;
     private JButton countButton;
     private boolean started;
-    private static boolean created;
-    
+    // private CritterModel myModel; // Removed
+    private ClientCritterManager critterManager; // Added
+    private CritterPanel myPicture;
+
     public CritterFrame(int width, int height) {
         // this prevents someone from trying to create their own copy of
         // the GUI components
-        if (created)
+        if (CritterFrame.created)
             throw new RuntimeException("Only one world allowed");
-        created = true;
+        CritterFrame.created = true;
 
         // create frame and model
         setTitle("CSE142 critter simulation");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        myModel = new CritterModel(width, height);
-
-        // set up critter picture panel
-        myPicture = new CritterPanel(myModel);
+        // myModel = new CritterModel(width, height); // Removed
+        boardView = new RemoteBoardView(BoardSnapshot.empty(width, height));
+        CritterPanel myPicture = new CritterPanel(boardView);
         add(myPicture, BorderLayout.CENTER);
+        this.myPicture = myPicture;
+
+        GameClient gameClient = new GameClient();
+        UUID gameId = gameClient.createGame();
+        String wsPath = gameClient.joinGame(gameId);
+        String wsUrl = "ws://game.local:7777" + wsPath;
+        socketHandler = new SocketHandler(
+                wsUrl,
+                status -> this.status = status,
+                snapshot -> {
+                    boardView.onSnapshot(snapshot);
+                    SwingUtilities.invokeLater(myPicture::repaint);
+                }
+        );
+        critterManager = new ClientCritterManager(socketHandler); // Initialize manager
+        socketHandler.connect();
 
         addTimer();
-
         constructSouth();
-
         // initially it has not started
         started = false;
+    }
+
+    public void add(int count, Class<? extends Critter> critterClass) {
+        critterManager.add(count, critterClass);
     }
 
     // construct the controls and label for the southern panel
@@ -50,11 +73,9 @@ public class CritterFrame extends JFrame {
         JPanel p = new JPanel();
 
         final JSlider slider = new JSlider();
-        slider.addChangeListener(new ChangeListener() {
-            public void stateChanged(ChangeEvent e) {
-                double ratio = 1000.0 / (1 + Math.pow(slider.getValue(), 0.3));
-                myTimer.setDelay((int) (ratio - 180));
-            }
+        slider.addChangeListener(e -> {
+            double ratio = 1000.0 / (1 + Math.pow(slider.getValue(), 0.3));
+            myTimer.setDelay((int) (ratio - 180));
         });
         slider.setValue(20);
         p.add(new JLabel("slow"));
@@ -75,32 +96,16 @@ public class CritterFrame extends JFrame {
             }
         });
         p.add(b2);
-        JButton b3 = new JButton("step");
-        b3.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                doOneStep();
-            }
-        });
-        p.add(b3);
         
         // add debug button
         JButton b4 = new JButton("debug");
         b4.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                myModel.toggleDebug();
+                // myModel.toggleDebug(); // Removed
                 myPicture.repaint();
             }
         });
         p.add(b4);
-
-        // add 100 button
-        JButton b5 = new JButton("next 100");
-        b5.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                multistep(100);
-            }
-        });
-        p.add(b5);
 
         add(p, BorderLayout.SOUTH);
     }
@@ -111,96 +116,15 @@ public class CritterFrame extends JFrame {
         if (started) {
             return;
         }
-        // if they didn't add any critters, then nothing to do
-        if (myModel.getCounts().isEmpty()) {
-            System.out.println("nothing to simulate--no critters");
-            return;
-        }
         started = true;
-        addClassCounts();
-        myModel.updateColorString();
         pack();
         setVisible(true);
     }
 
-    // add right-hand column showing how many of each critter are alive
-    private void addClassCounts() {
-        Set<Map.Entry<String, Integer>> entries = myModel.getCounts();
-        JPanel p = new JPanel(new GridLayout(entries.size() + 1, 1));
-        counts = new JButton[entries.size()];
-        for (int i = 0; i < counts.length; i++) {
-            counts[i] = new JButton();
-            p.add(counts[i]);
-        }
-
-        // add simulation count
-        countButton = new JButton();
-        countButton.setForeground(Color.BLUE);
-        p.add(countButton);
-
-        add(p, BorderLayout.EAST);
-        setCounts();
-    }
-
-    private void setCounts() {
-        int i = 0;
-        int max = 0;
-        int maxI = 0;
-        for (Map.Entry<String, Integer> entry: myModel.getCounts()) {
-            String s = String.format("%s =%4d", entry.getKey(),
-                                     (int) entry.getValue());
-            counts[i].setText(s);
-            counts[i].setForeground(Color.BLACK);
-            if (entry.getValue() > max) {
-                max = entry.getValue();
-                maxI = i;
-            }
-            i++;
-        }
-        counts[maxI].setForeground(Color.RED);
-        String s = String.format("step =%5d", myModel.getSimulationCount());
-        countButton.setText(s);
-    }
-
-    // add a certain number of critters of a particular class to the simulation
-    public void add(int number, Class<? extends Critter> c) {
-        // don't let anyone add critters after simulation starts
-        if (started) {
-            return;
-        }
-        // temporarily turning on started flag prevents critter constructors
-        // from calling add
-        started = true;
-        myModel.add(number, c);
-        started = false;
-    }
-
-    // post: creates a timer that calls the model's update
-    //       method and repaints the display
     private void addTimer() {
-        ActionListener updater = new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                doOneStep();
-            }
-        };
-        myTimer = new javax.swing.Timer(0, updater);
+        // remote view updates happen via socket, so timer just requests repaints
+        ActionListener updater = e -> myPicture.repaint();
+        myTimer = new javax.swing.Timer(250, updater);
         myTimer.setCoalesce(true);
-    }
-
-    // one step of the simulation
-    private void doOneStep() {
-        myModel.update();
-        setCounts();
-        myPicture.repaint();
-    }
-
-    // advance the simulation until step % n is 0
-    private void multistep(int n) {
-        myTimer.stop();
-        do {
-            myModel.update();
-        } while (myModel.getSimulationCount() % n != 0);
-        setCounts();
-        myPicture.repaint();
     }
 }

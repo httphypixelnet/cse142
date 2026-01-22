@@ -26,6 +26,13 @@ public class Utils {
             }
             return input + String.valueOf(padding).repeat(totalLength - input.length());
         }
+
+        /**
+         * Prompts the user for input and returns the input
+         * @param prompt the prompt to display
+         * @param scanner the scanner to use for input
+         * @return the user input
+         * */
     public static String prompt(String prompt, Scanner scanner) {
         return prompt(prompt, scanner, '>');
     }
@@ -34,7 +41,6 @@ public class Utils {
         String line = scanner.nextLine().trim();
         return line.isEmpty() ? "0.0" : line;
     }
-
     /**
      * Result class that holds either an error or data
      *

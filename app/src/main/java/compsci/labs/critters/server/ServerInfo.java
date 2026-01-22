@@ -3,6 +3,8 @@ package compsci.labs.critters.server;
 import compsci.labs.critters.shared.Critter;
 import compsci.labs.critters.shared.CritterInfo;
 
+import compsci.labs.critters.shared.dto.CritterInfoDTO;
+
 class ServerInfo implements CritterInfo {
         private Critter.Neighbor[] neighbors;
         private Critter.Direction direction;
@@ -13,6 +15,14 @@ class ServerInfo implements CritterInfo {
             this.neighbors = neighbors;
             this.direction = d;
             this.neighborThreats = neighborThreats;
+        }
+
+        public CritterInfoDTO toDTO() {
+            return new CritterInfoDTO(
+                neighbors[0], neighbors[2], neighbors[3], neighbors[1],
+                direction,
+                neighborThreats[0], neighborThreats[2], neighborThreats[3], neighborThreats[1]
+            );
         }
 
         public Critter.Neighbor getFront() {

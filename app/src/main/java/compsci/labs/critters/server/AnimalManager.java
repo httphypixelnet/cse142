@@ -7,12 +7,16 @@ import java.util.function.Predicate;
 
 class AnimalManager {
     private final Map<UUID, Animal> animals;
-    public AnimalManager() {
+    public final UUID id = UUID.randomUUID();
+    public static String url;
+    private final GameState app;
+    public AnimalManager(GameState app) {
+        this.app = app;
         this.animals = new HashMap<>();
     }
     public UUID add(Animal a) {
         this.animals.put(a.id, a);
-        GlobalState.startManaging(a, this);
+        app.startManaging(a, this);
         return a.id;
     }
     public Animal get(UUID id) {
@@ -34,14 +38,6 @@ class AnimalManager {
     public void clear() {
         this.animals.clear();
     }
-    public AnimalManager copy() {
-        AnimalManager copy = new AnimalManager();
-        copy.animals.putAll(this.animals);
-        return copy;
-    }
-    public void update(AnimalManager other) {
-        this.animals.putAll(other.animals);
-    }
     public Map<UUID, Animal> removeAll(Set<UUID> ids) {
         Map<UUID, Animal> removed = new HashMap<>();
         for (UUID id : ids) {
@@ -50,7 +46,7 @@ class AnimalManager {
         return removed;
     }
     public AnimalManager filter(Predicate<Animal> filter) {
-        AnimalManager filtered = new AnimalManager();
+        AnimalManager filtered = new AnimalManager(this.app);
         for (Animal animal : animals.values()) {
             if (filter.test(animal)) {
                 filtered.animals.put(animal.id, animal);

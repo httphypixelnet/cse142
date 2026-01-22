@@ -20,6 +20,8 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     implementation("org.graalvm.polyglot:polyglot:25.0.1")
     implementation("io.javalin:javalin:6.7.0")
+    implementation("org.slf4j:slf4j-simple:2.0.16")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // This dependency is used by the application.
@@ -35,7 +37,7 @@ java {
 
 application {
     // Define the main class for the application.
-    mainClass = "lyrics.App"
+    mainClass = "compsci.App"
 }
 
 
@@ -45,6 +47,6 @@ tasks.named<Test>("test") {
 }
 tasks.withType<Jar> {
     manifest {
-        attributes["Main-Class"] = "java.compsci.App"
+        attributes["Main-Class"] = "compsci.labs.critters.server.ServerMain"
     }
 }

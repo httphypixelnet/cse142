@@ -7,19 +7,12 @@ import java.util.Arrays;
 import java.util.Scanner;
 import compsci.Utils;
 
-/**
- * Processes Keirsey personality test results from an input file and writes
- * each person's B-percentages and four-letter type to an output file.
- */
 public class PersonalityTest {
     private static final int DIMENSIONS = 4;
     private static final int[] DIMENSION_PATTERN = {0, 1, 1, 2, 2, 3, 3};
     private static final char[] TYPE_A_LETTERS = {'E', 'S', 'T', 'J'};
     private static final char[] TYPE_B_LETTERS = {'I', 'N', 'F', 'P'};
 
-    /**
-     * Entry point that prints the intro, prompts for files, and drives processing.
-     */
     public static void main(String[] args) {
         Scanner console = new Scanner(System.in);
         printIntro();
@@ -30,9 +23,6 @@ public class PersonalityTest {
         output.close();
     }
 
-    /**
-     * Prints the console introduction for the assignment.
-     */
     private static void printIntro() {
         System.out.println("This program processes a file of answers to the");
         System.out.println("Keirsey Temperament Sorter. It converts the");
@@ -42,12 +32,6 @@ public class PersonalityTest {
         System.out.println();
     }
 
-    /**
-     * Prompts until a readable input file is provided, returning a Scanner for it.
-     *
-     * @param console console scanner used for prompting
-     * @return scanner for the chosen input file
-     */
     private static Scanner promptForInput(Scanner console) {
         while (true) {
             String fileName = Utils.prompt("input file name?", console).trim();
@@ -58,13 +42,6 @@ public class PersonalityTest {
             }
         }
     }
-
-    /**
-     * Prompts until a writable output file can be opened, returning its PrintStream.
-     *
-     * @param console console scanner used for prompting
-     * @return print stream for the chosen output file
-     */
     private static PrintStream promptForOutput(Scanner console) {
         while (true) {
             String fileName = Utils.prompt("output file name?", console).trim();
@@ -76,12 +53,6 @@ public class PersonalityTest {
         }
     }
 
-    /**
-     * Reads each name/answer pair, computes statistics, and writes formatted output.
-     *
-     * @param data scanner positioned at the start of the input data
-     * @param output destination stream for the per-person results
-     */
     private static void processPeople(Scanner data, PrintStream output) {
         while (data.hasNextLine()) {
             String name = data.nextLine();
@@ -98,13 +69,6 @@ public class PersonalityTest {
         }
     }
 
-    /**
-     * Tallies A and B answers for each dimension based on a 70-character response string.
-     *
-     * @param responses the raw A/B/- sequence for one person
-     * @param aCounts running totals of A answers per dimension
-     * @param bCounts running totals of B answers per dimension
-     */
     private static void tallyResponses(String responses, int[] aCounts, int[] bCounts) {
         for (int i = 0; i < responses.length(); i++) {
             char ch = responses.charAt(i);
@@ -120,14 +84,6 @@ public class PersonalityTest {
             }
         }
     }
-
-    /**
-     * Converts A/B counts into rounded B-percentages for each dimension.
-     *
-     * @param aCounts count of A responses per dimension
-     * @param bCounts count of B responses per dimension
-     * @return array of rounded B-percentages per dimension
-     */
     private static int[] computeBPercentages(int[] aCounts, int[] bCounts) {
         int[] bPercentages = new int[DIMENSIONS];
         for (int i = 0; i < DIMENSIONS; i++) {
@@ -138,12 +94,6 @@ public class PersonalityTest {
         return bPercentages;
     }
 
-    /**
-     * Converts B-percentages into the four-letter personality type.
-     *
-     * @param bPercentages array of B-percentages per dimension
-     * @return string representing the final personality type
-     */
     private static String determinePersonalityType(int[] bPercentages) {
         StringBuilder type = new StringBuilder(DIMENSIONS);
         for (int i = 0; i < DIMENSIONS; i++) {
